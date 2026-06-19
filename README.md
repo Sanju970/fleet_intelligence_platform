@@ -187,20 +187,49 @@ Results are written to `eval/results.json` and printed as a scoreboard:
 ================================================
   FleetIQ Eval Scoreboard
 ================================================
-  Route accuracy   : 16/20
-  Content accuracy : 16/20
+  Route accuracy   : 17/20
+  Content accuracy : 18/20
 ================================================
 ```
 
-*(Representative run on Groq `llama-3.3-70b-versatile`. Exact numbers vary by LLM
-provider and model. Note: Groq's free tier caps you at ~100K tokens/day — a full
-ingest plus several eval runs can exhaust it, after which calls fall back to the
-mock LLM and scores drop. Wait for the daily reset or use a paid tier/another
-provider for a clean run.)*
+*Reproducible offline baseline* — the numbers above are from the built-in
+**rule-based fallback** (`FAST_PROVIDER=mock STRONG_PROVIDER=mock`), so anyone can
+reproduce them on a fresh clone with **no API key**. A real LLM (Groq/Claude) is
+more fluent and generalizes further; results vary by provider and model.
+
+> Heads-up: Groq's free tier caps you at ~100K tokens/day. A full ingest plus
+> several eval runs can exhaust it, after which calls fall back to the mock and
+> scores reflect the mock, not the model. Wait for the daily reset or use another
+> provider for a clean real-LLM run.
 
 The traps matter as much as the hits: when asked for a truck's GPS location or
 live engine temperature — data this fleet doesn't track — the agent must answer
 *"I don't have a record or document for that,"* never invent a number.
+
+## Tests
+
+```bash
+make test        # or: python -m pytest -q
+```
+
+Unit tests (no LLM, no network) cover SQL write-blocking, the clean error
+translation, the `truck_id` guard, retrieval resilience, and the fallback LLM's
+routing/SQL/grounding. Integration tests check dataset integrity (every document
+links to a real truck; every truck has its title/2290/registration) and retrieval
+scoping — these auto-skip until you've run `make build`. CI runs the unit tests on
+every push ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+
+## API
+
+| Endpoint        | Returns                                                        |
+|-----------------|---------------------------------------------------------------|
+| `GET /`         | the chat console                                              |
+| `GET /health`   | liveness + whether the DB and vector store are ready          |
+| `GET /stats`    | fleet/document counts (drives the UI header)                  |
+| `POST /ask`     | `{question}` → full trace: route, sql, documents, answer, note |
+
+Requests never return a stack trace — a missing vector store or a bad query
+degrades into a clean JSON answer.
 
 ## Project structure
 
@@ -224,9 +253,10 @@ fleetiq/
 ├── eval/
 │   └── run_eval.py     gold-set scoreboard (route + content + traps)
 ├── ui/
-│   ├── app.py          FastAPI: POST /ask returns the full agent trace
+│   ├── app.py          FastAPI: /ask, /health, /stats
 │   └── index.html      chat console showing route + SQL + citations
-├── Makefile  ·  requirements.txt  ·  .env.example
+├── tests/            # pytest: unit (no LLM) + integration (skip until built)
+├── Makefile  ·  requirements.txt  ·  .env.example  ·  .github/workflows/ci.yml
 ```
 
 ## Design choices & honesty
@@ -237,8 +267,10 @@ fleetiq/
   "not tracked" note instead of leaking a raw database error.
 - **DB and documents describe the same fleet.** Expenses are *derived* from the
   fuel/repair documents, so hybrid questions join cleanly across both sides.
-- **Fails safe.** A bad key or rate limit falls back to the mock for that turn so
-  a live demo never hard-crashes.
+- **Fails safe.** A bad key or rate limit falls back to the rule-based mock for
+  that turn so a live demo never hard-crashes; a missing vector store degrades to a
+  records-only answer instead of erroring. The whole system runs **with no API key
+  at all** on the mock — useful for offline demos and CI.
 
 ## Generalizes beyond trucking
 

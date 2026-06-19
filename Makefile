@@ -1,7 +1,7 @@
 # FleetIQ — common tasks. Run `make help` for the list.
 PY ?= python
 
-.PHONY: help install data db ingest build serve eval demo clean reset
+.PHONY: help install data db ingest build serve eval demo test clean reset
 
 help:
 	@echo "FleetIQ make targets:"
@@ -35,6 +35,9 @@ serve:
 
 eval:
 	$(PY) eval/run_eval.py
+
+test:
+	$(PY) -m pytest -q
 
 demo:
 	$(PY) -c "from agent.graph import answer; import json; print(json.dumps(answer('Which trucks are profitable?'), indent=2, default=str))"

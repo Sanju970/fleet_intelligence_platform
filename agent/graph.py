@@ -46,6 +46,7 @@ class State(TypedDict):
     sql: Optional[str]
     sql_rows: Optional[list]
     docs: Optional[list]
+    note: Optional[str]
     answer: Optional[str]
 
 # ---------- classify ----------
@@ -126,7 +127,14 @@ def sql_node(state: State) -> State:
 
 # ---------- retrieval ----------
 def retr_node(state: State) -> State:
-    state["docs"] = doc_search(state["question"], k=4, truck_id=state.get("truck_id"))
+    try:
+        state["docs"] = doc_search(state["question"], k=4, truck_id=state.get("truck_id"))
+    except Exception as e:
+        # Vector store missing/unavailable: never crash the request. Answer from
+        # whatever other evidence exists and note that documents weren't searchable.
+        state["docs"] = []
+        state["note"] = ("Document index is unavailable (build it with "
+                         "`python ingest/pipeline.py`); answered from structured records only.")
     return state
 
 # ---------- hybrid ----------
@@ -150,6 +158,8 @@ def ground(state: State) -> State:
         ev["documents"] = [{"file": d["file"], "truck_id": d["truck_id"],
                             "doc_type": d["doc_type"], "excerpt": d["text"][:300]}
                            for d in state["docs"]]
+    if state.get("note"):
+        ev["note"] = state["note"]
     state["answer"] = call_llm(GROUND_SYS, f"Question: {state['question']}\n\nEvidence:\n{json.dumps(ev, default=str, indent=2)}", role="ground")
     return state
 

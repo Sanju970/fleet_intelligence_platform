@@ -177,8 +177,8 @@
       <span class="sub">Dispatch Terminal</span>
     </div>
     <div class="status">
-      <span class="stat">FLEET <b>25</b> units</span>
-      <span class="stat">DOCS <b id="docCount">1,014</b></span>
+      <span class="stat">FLEET <b id="truckCount">—</b> units</span>
+      <span class="stat">DOCS <b id="docCount">—</b></span>
       <span class="live"><span class="dot"></span>GROUNDED</span>
     </div>
   </header>
@@ -293,6 +293,7 @@
            <span class="route-meta">${tid}</span>
          </div>
          <div class="answer">${renderCitations(esc(data.answer||'No answer.'))}</div>
+         ${data.note ? `<div class="evidence"><h4>Note</h4><div class="legend">${esc(data.note)}</div></div>` : ''}
          ${evidence}
        </div>`;
     stream.appendChild(m); scroll();
@@ -325,6 +326,12 @@
   document.querySelectorAll('.ex').forEach(b =>
     b.addEventListener('click', () => ask(b.dataset.q)));
   input.focus();
+
+  // pull real fleet/doc counts so the header reflects the actual dataset
+  fetch('/stats').then(r => r.json()).then(s => {
+    if (s.trucks != null) document.getElementById('truckCount').textContent = s.trucks;
+    if (s.documents != null) document.getElementById('docCount').textContent = s.documents.toLocaleString();
+  }).catch(()=>{});
 </script>
 </body>
 </html>
