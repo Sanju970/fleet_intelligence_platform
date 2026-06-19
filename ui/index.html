@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetIQ — Dispatch Terminal</title>
+<style>
+  :root {
+    --bg: #11151c;
+    --panel: #161c26;
+    --panel-2: #1c2531;
+    --line: #2a3543;
+    --ink: #e8edf3;
+    --muted: #8a98a9;
+    --amber: #f5a623;        /* dash-indicator amber — the accent */
+    --amber-dim: #3a2e16;
+    --sql: #4ea1f5;          /* route colors */
+    --doc: #57c98a;
+    --hybrid: #c98ae6;
+    --danger: #e5604d;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: "Inter", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #1b2433 0%, transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    display: flex; flex-direction: column;
+    height: 100vh; overflow: hidden;
+  }
+
+  /* ---- header: dispatch console bar ---- */
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand .mark {
+    font-family: var(--mono); font-weight: 700; font-size: 19px;
+    letter-spacing: -0.5px; color: var(--ink);
+  }
+  .brand .mark b { color: var(--amber); }
+  .brand .sub {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .status { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+  .stat { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .stat b { color: var(--ink); font-weight: 600; }
+  .live { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--doc); }
+  .live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--doc); box-shadow: 0 0 8px var(--doc); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ---- main split ---- */
+  .wrap { flex: 1; display: grid; grid-template-columns: 1fr 340px; min-height: 0; }
+
+  /* ---- conversation column ---- */
+  .convo { display: flex; flex-direction: column; min-height: 0; }
+  .stream { flex: 1; overflow-y: auto; padding: 26px 28px; display: flex; flex-direction: column; gap: 22px; }
+  .stream::-webkit-scrollbar { width: 8px; }
+  .stream::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .msg { max-width: 760px; }
+  .msg.user { align-self: flex-end; }
+  .msg.user .bubble {
+    background: var(--amber-dim); border: 1px solid #4a3a1a;
+    color: #f6e6c8; padding: 11px 15px; border-radius: 12px 12px 2px 12px;
+    font-size: 14px;
+  }
+  .msg.agent .bubble {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 2px 12px 12px 12px; overflow: hidden;
+  }
+
+  /* route header inside agent bubble — THE SIGNATURE */
+  .route-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+    font-family: var(--mono); font-size: 11px;
+  }
+  .route-tag {
+    font-weight: 700; letter-spacing: 1px; padding: 3px 9px; border-radius: 4px;
+    text-transform: uppercase; font-size: 10px;
+  }
+  .route-sql    { color: var(--sql);    background: rgba(78,161,245,.12);  border: 1px solid rgba(78,161,245,.35); }
+  .route-doc    { color: var(--doc);    background: rgba(87,201,138,.12);  border: 1px solid rgba(87,201,138,.35); }
+  .route-hybrid { color: var(--hybrid); background: rgba(201,138,230,.12); border: 1px solid rgba(201,138,230,.35); }
+  .route-meta { color: var(--muted); }
+  .route-meta b { color: var(--ink); }
+
+  .answer { padding: 15px; font-size: 14.5px; line-height: 1.6; }
+  .answer .cite {
+    font-family: var(--mono); font-size: 12px; color: var(--amber);
+    background: var(--amber-dim); padding: 1px 5px; border-radius: 3px;
+    border: 1px solid #4a3a1a; white-space: nowrap;
+  }
+
+  /* evidence drawer */
+  .evidence { border-top: 1px dashed var(--line); padding: 12px 15px; background: #131922; }
+  .evidence h4 {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--muted); margin-bottom: 8px;
+  }
+  .sql-block {
+    font-family: var(--mono); font-size: 12px; color: #cfe0f5;
+    background: #0e1722; border: 1px solid #20344a; border-left: 2px solid var(--sql);
+    padding: 9px 11px; border-radius: 4px; overflow-x: auto; white-space: pre;
+    margin-bottom: 8px;
+  }
+  .doc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 11px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 5px 9px; border-radius: 5px; color: var(--ink);
+  }
+  .chip .dt { color: var(--doc); }
+  .chip .tk { color: var(--muted); }
+  .chip .sc { color: var(--amber); margin-left: 2px; }
+
+  .thinking { display: flex; gap: 5px; padding: 16px; }
+  .thinking span { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); opacity: .4; animation: bob 1.2s infinite; }
+  .thinking span:nth-child(2){ animation-delay:.2s } .thinking span:nth-child(3){ animation-delay:.4s }
+  @keyframes bob { 0%,100%{transform:translateY(0);opacity:.3} 50%{transform:translateY(-5px);opacity:1} }
+
+  /* composer */
+  .composer { border-top: 1px solid var(--line); padding: 16px 22px; background: var(--panel); }
+  .composer form { display: flex; gap: 10px; }
+  .composer input {
+    flex: 1; background: var(--bg); border: 1px solid var(--line);
+    color: var(--ink); padding: 13px 15px; border-radius: 8px;
+    font-family: var(--sans); font-size: 14px; outline: none;
+  }
+  .composer input:focus { border-color: var(--amber); }
+  .composer button {
+    background: var(--amber); color: #1a1206; border: none;
+    padding: 0 20px; border-radius: 8px; font-weight: 700; font-size: 14px;
+    cursor: pointer; font-family: var(--sans);
+  }
+  .composer button:hover { background: #ffb838; }
+  .composer button:disabled { opacity: .5; cursor: default; }
+
+  /* ---- right rail: try-these + how it routes ---- */
+  .rail { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 22px 20px; }
+  .rail h3 {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--muted); margin: 0 0 12px;
+  }
+  .rail h3:not(:first-child) { margin-top: 26px; }
+  .ex { width: 100%; text-align: left; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--ink); padding: 10px 12px; border-radius: 7px; margin-bottom: 8px;
+    cursor: pointer; font-size: 13px; line-height: 1.4; transition: border-color .15s; }
+  .ex:hover { border-color: var(--amber); }
+  .ex .badge { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; padding: 1px 5px;
+    border-radius: 3px; margin-right: 7px; vertical-align: middle; }
+  .b-sql{ color:var(--sql); border:1px solid rgba(78,161,245,.4) } .b-doc{ color:var(--doc); border:1px solid rgba(87,201,138,.4) } .b-hy{ color:var(--hybrid); border:1px solid rgba(201,138,230,.4) }
+  .legend { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .legend b { font-family: var(--mono); font-size: 11px; }
+
+  @media (max-width: 880px){
+    .wrap { grid-template-columns: 1fr; }
+    .rail { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="mark">Fleet<b>IQ</b></span>
+      <span class="sub">Dispatch Terminal</span>
+    </div>
+    <div class="status">
+      <span class="stat">FLEET <b>25</b> units</span>
+      <span class="stat">DOCS <b id="docCount">1,014</b></span>
+      <span class="live"><span class="dot"></span>GROUNDED</span>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="convo">
+      <div class="stream" id="stream">
+        <div class="msg agent">
+          <div class="bubble">
+            <div class="route-bar">
+              <span class="route-tag route-hybrid">SYSTEM</span>
+              <span class="route-meta">Ask anything about the fleet — records, documents, or both.</span>
+            </div>
+            <div class="answer">
+              Every answer shows the <b>route</b> it took (database, documents, or hybrid),
+              the exact query or files it used, and citations back to the source.
+              Nothing is answered from thin air — if the evidence isn't there, it says so.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <form id="form">
+          <input id="input" autocomplete="off"
+            placeholder="e.g.  Which trucks have a registration expiring in 30 days?" />
+          <button id="send" type="submit">Ask</button>
+        </form>
+      </div>
+    </div>
+
+    <aside class="rail">
+      <h3>Try these</h3>
+      <button class="ex" data-q="How many trucks are currently active?">
+        <span class="badge b-sql">SQL</span>How many trucks are currently active?</button>
+      <button class="ex" data-q="What's our total fuel spend across the fleet?">
+        <span class="badge b-sql">SQL</span>Total fuel spend across the fleet?</button>
+      <button class="ex" data-q="Where is the tax form for truck 8?">
+        <span class="badge b-doc">DOC</span>Where is the tax form for truck 8?</button>
+      <button class="ex" data-q="Show me a repair invoice for truck 3">
+        <span class="badge b-doc">DOC</span>Show me a repair invoice for truck 3</button>
+      <button class="ex" data-q="Which trucks have registrations expiring soon and what do I need to renew them?">
+        <span class="badge b-hy">HYBRID</span>Registrations expiring soon + renewal docs?</button>
+      <button class="ex" data-q="What's the GPS location of truck 5 right now?">
+        <span class="badge b-doc">TRAP</span>GPS location of truck 5? (no data — watch it refuse)</button>
+
+      <h3>How it routes</h3>
+      <div class="legend">
+        <b style="color:var(--sql)">SQL</b> — counts, totals, costs, due dates over fleet records.<br>
+        <b style="color:var(--doc)">DOC</b> — find or quote a specific document.<br>
+        <b style="color:var(--hybrid)">HYBRID</b> — a record lookup <i>and</i> a document, merged.
+      </div>
+    </aside>
+  </div>
+
+<script>
+  const stream = document.getElementById('stream');
+  const form = document.getElementById('form');
+  const input = document.getElementById('input');
+  const send = document.getElementById('send');
+
+  const ROUTE_CLASS = { sql:'route-sql', retrieval:'route-doc', hybrid:'route-hybrid' };
+  const ROUTE_LABEL = { sql:'SQL · DATABASE', retrieval:'DOC · RETRIEVAL', hybrid:'HYBRID · BOTH' };
+
+  function addUser(text){
+    const m = document.createElement('div');
+    m.className = 'msg user';
+    m.innerHTML = `<div class="bubble"></div>`;
+    m.querySelector('.bubble').textContent = text;
+    stream.appendChild(m); scroll();
+  }
+
+  function addThinking(){
+    const m = document.createElement('div');
+    m.className = 'msg agent'; m.id = 'thinking';
+    m.innerHTML = `<div class="bubble"><div class="thinking"><span></span><span></span><span></span></div></div>`;
+    stream.appendChild(m); scroll();
+  }
+
+  function renderCitations(text){
+    // wrap [something] tokens as citation chips
+    return text.replace(/\[([^\]]+)\]/g, '<span class="cite">$1</span>');
+  }
+
+  function addAnswer(data){
+    document.getElementById('thinking')?.remove();
+    const rc = ROUTE_CLASS[data.route] || 'route-hybrid';
+    const rl = ROUTE_LABEL[data.route] || (data.route||'').toUpperCase();
+    let evidence = '';
+    if (data.sql) {
+      evidence += `<div class="evidence"><h4>Query executed</h4><div class="sql-block">${esc(data.sql)}</div>`;
+    }
+    if (data.documents && data.documents.length) {
+      if (!data.sql) evidence += `<div class="evidence">`;
+      evidence += `<h4>Documents retrieved</h4><div class="doc-chips">`;
+      data.documents.forEach(d => {
+        evidence += `<span class="chip"><span class="dt">${esc(d.doc_type)}</span>`+
+          `<span class="tk">truck ${d.truck_id}</span> ${esc(d.file)}`+
+          (d.score!=null?`<span class="sc">${d.score}</span>`:``)+`</span>`;
+      });
+      evidence += `</div></div>`;
+    } else if (data.sql) {
+      evidence += `</div>`;
+    }
+    const m = document.createElement('div');
+    m.className = 'msg agent';
+    const tid = data.truck_id!=null ? `· truck <b>${data.truck_id}</b>` : '';
+    m.innerHTML =
+      `<div class="bubble">
+         <div class="route-bar">
+           <span class="route-tag ${rc}">${rl}</span>
+           <span class="route-meta">${tid}</span>
+         </div>
+         <div class="answer">${renderCitations(esc(data.answer||'No answer.'))}</div>
+         ${evidence}
+       </div>`;
+    stream.appendChild(m); scroll();
+  }
+
+  function esc(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  function scroll(){ stream.scrollTop = stream.scrollHeight; }
+
+  async function ask(q){
+    addUser(q); addThinking();
+    send.disabled = true;
+    try {
+      const r = await fetch('/ask', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({question:q})
+      });
+      const data = await r.json();
+      addAnswer(data);
+    } catch(e){
+      document.getElementById('thinking')?.remove();
+      addAnswer({route:'hybrid', answer:`Connection error — is the backend running? (uvicorn ui.app:app --port 8000)`});
+    } finally { send.disabled = false; input.focus(); }
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const q = input.value.trim(); if(!q) return;
+    input.value = ''; ask(q);
+  });
+  document.querySelectorAll('.ex').forEach(b =>
+    b.addEventListener('click', () => ask(b.dataset.q)));
+  input.focus();
+</script>
+</body>
+</html>

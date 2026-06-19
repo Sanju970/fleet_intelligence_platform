@@ -1,0 +1,26 @@
+# ── Secrets ─────────────────────────────────────────────
+.env
+
+# ── Generated data & indexes (rebuild with `make data`) ─
+data/docs/
+data/manifest.json
+data/fleet_structured.json
+db/fleet.db
+db/chroma/
+eval/results.json
+
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ── Tooling / OS ────────────────────────────────────────
+.claude/
+.qodo/
+.DS_Store
+.idea/
+.vscode/
+*.log

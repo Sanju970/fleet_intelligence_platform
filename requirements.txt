@@ -1,0 +1,31 @@
+# ── FleetIQ dependencies ───────────────────────────────────────────
+# Python 3.10+ recommended.
+
+# Agent / orchestration
+langgraph>=0.2
+langchain-core>=0.3
+python-dotenv>=1.0
+
+# LLM providers (any one is enough; GROQ is free — see .env.example)
+groq>=0.11
+anthropic>=0.40
+openai>=1.0
+
+# Retrieval: embeddings + vector store
+chromadb>=0.5
+sentence-transformers>=3.0
+
+# Document ingestion: native PDF text + OCR for scanned images
+pdfplumber>=0.11
+pytesseract>=0.3.13
+pdf2image>=1.17
+pillow>=10.0
+
+# Synthetic-data generation (Lane A)
+reportlab>=4.0
+faker>=30
+
+# API + web UI
+fastapi>=0.115
+uvicorn>=0.32
+pydantic>=2.0
